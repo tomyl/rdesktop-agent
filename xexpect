@@ -1,5 +1,59 @@
 #!/usr/bin/perl
 
+# xexpect screen scrapes X11 windows and performes actions if matching text
+# patterns are found. xexpect is intended to be run as an rdesktop agent (option -G).
+#
+# Usage: xexpect <file>
+#
+# The xexpect file format is described below.
+#
+# Global commands:
+#
+#   interval <seconds>
+#     Poll  interval, how often to screen scrape the window.
+#
+#   defmacro <name> <cmdline>
+#     Defined a macro.
+#
+#   expect <regexp>
+#     Starts an expect block. If any text matches the regexp pattern, the
+#     commands in the block are executed.
+#
+#  Commands in expect blocks:
+#
+#    macro <name>
+#      Invokes macro.
+#
+#    stdout <text>
+#      Outputs text on stdout.
+#    
+#
+# xexpect talks the following protocol on stdin/stdout.
+#
+# Commands accepted on stdin:
+#
+#   init
+#     Just a greeting sent by rdesktop in agent mode.
+#
+#   window <id>
+#     The window id (e.g. 0x5000095) to screen scrape.
+#
+# Commands sent to stdout:
+#
+#   exit
+#     rdesktop should exit.
+#
+#   send <string>
+#     Send string as fake key press events to the window. The string may
+#     contain the following special characters:
+#       ^m - return
+#       ^t - tab
+#       ^? - delete
+#       ^h - backspace
+#       ^^ - literal ^
+#       ^{symbol} - X11 key symbol, e.g. ^{Down} for down arrow
+#       ^{A-symbol} - same as above but with alt key, e.g. ^{A-o} sends Alt+o
+
 use strict;
 use warnings;
 
