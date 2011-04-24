@@ -24,6 +24,11 @@
 extern "C" {
 #endif
 /* *INDENT-ON* */
+/* agent.c */
+void agent_init();
+void agent_add_fds(int *n, fd_set * rfds, fd_set * wfds);
+void agent_check_fds(fd_set * rfds, fd_set * wfds);
+void agent_send(const char *fmt, ...);
 /* bitmap.c */
 RD_BOOL bitmap_decompress(uint8 * output, int width, int height, uint8 * input, int size, int Bpp);
 /* cache.c */
@@ -229,6 +234,7 @@ unsigned int read_keyboard_state(void);
 uint16 ui_get_numlock_state(unsigned int state);
 void reset_modifier_keys(void);
 void rdp_send_scancode(uint32 time, uint16 flags, uint8 scancode);
+void xkeymap_send_string(char *s);
 /* xwin.c */
 RD_BOOL get_key_state(unsigned int state, uint32 keysym);
 RD_BOOL ui_init(void);

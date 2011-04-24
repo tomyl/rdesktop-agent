@@ -1,0 +1,143 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Data::Dumper;
+use File::Temp qw/tempfile/;
+use File::Slurp qw/read_file/;
+use IO::Select;
+
+my $display = $ENV{'DISPLAY'};
+#my $wid = $ENV{'WINDOWID'};
+my $wid;
+
+sub capture {
+    if (!$wid) {
+        print STDERR "Please set environment variable DISPLAY\n";
+        return;
+    }
+
+    if (!$wid) {
+        #print STDERR "Please set environment variable WINDOWID\n";
+        print STDERR "Have not received windowid param yet\n";
+        return;
+    }
+
+    my ($fh1, $jpg) = tempfile(SUFFIX => '.jpg', UNLINK => 0);
+    my ($fh2, $pnm) = tempfile(SUFFIX => '.pnm', UNLINK => 0);
+    my ($fh3, $txt) = tempfile(SUFFIX => '.txt', UNLINK => 0);
+
+    print STDERR "Capturing $wid at $display\n";
+
+    `import -window $wid $jpg`;
+
+    if ($?) {
+        print STDERR "import(1) failed\n";
+        exit 1;
+    }
+
+    `convert $jpg $pnm`;
+
+    if ($?) {
+        print STDERR "convert(1) failed\n";
+        exit 1;
+    }
+
+    `gocr -i $pnm > $txt`;
+
+    if ($?) {
+        print STDERR "gocr(1) failed\n";
+        exit 1;
+    }
+
+    my $output = read_file($txt);
+    print STDERR "OUTPUT: $output\n";
+
+    return $output;
+}
+
+my $toexpect;
+my %actions;
+my $interval = 5;
+
+my $path = $ARGV[0];
+open(FH, $path) or die "failed to open $path: $!";
+
+while (my $line = <FH>) {
+    next if $line =~ /\s*#/;
+    next if $line =~ /^\s*$/;
+    chomp $line;
+
+    if ($line =~ /^\s*expect (.*)/) {
+        $toexpect = $1;
+        next;
+    }
+
+    if ($toexpect) {
+        if ($line =~ /^\s*(stdout|interval)\s+(.*)/) {
+            push @{$actions{$toexpect}}, [$1, $2];
+            next;
+        }
+    } else {
+        if ($line =~ /^\s*interval\s+(.*)/) {
+            $interval = $1;
+            next;
+        }
+    }
+
+    print STDERR "Failed to parse '$line'\n";
+}
+
+close(FH);
+
+print STDERR Dumper(\%actions);
+
+my $sel = IO::Select->new();
+$sel->add(\*STDIN);
+$| = 1;
+
+while (1) {
+    my $start = time();
+
+    print STDERR "QQQ0\n";
+    while ($sel->can_read($interval)) {
+        print STDERR "QQQ1\n";
+        my $line = <STDIN>;
+        if (!defined $line || $line eq '') {
+            exit(0)
+        }
+        chomp $line;
+        print STDERR "From rdesktop: $line\n";
+
+        if ($line =~ /^window (.*)$/) {
+            $wid = $1;
+            print STDERR "Will capture from window $wid\n";
+        }
+    }
+    print STDERR "QQQ2\n";
+
+    next unless $wid;
+    my $left = $interval - (time() - $start);
+    sleep $left if $left > 0;
+
+    my $output = capture();
+    next unless $output;
+    for my $s (sort keys %actions) {
+        print STDERR "TRYING $s\n";
+        if ($output =~ /$s/) {
+            my @acts = @{$actions{$s}};
+            while (my $a = shift @acts) {
+                my ($cmd, $arg) = @$a;
+                if ($cmd eq 'interval') {
+                    $interval = $1;
+                }
+                if ($cmd eq 'stdout') {
+                    print STDERR "WRITING TO STDOUT\n";
+                    print $arg . "\n";
+                }
+            }
+        }
+    }
+}
+

@@ -39,12 +39,14 @@ extern int g_height;
 extern int g_xpos;
 extern int g_ypos;
 extern int g_pos;
+extern int g_agent_fd;
 extern RD_BOOL g_sendmotion;
 extern RD_BOOL g_fullscreen;
 extern RD_BOOL g_grab_keyboard;
 extern RD_BOOL g_hide_decorations;
 extern RD_BOOL g_pending_resize;
 extern char g_title[];
+extern char g_agent[];
 /* Color depth of the RDP session.
    As of RDP 5.1, it may be 8, 15, 16 or 24. */
 extern int g_server_depth;
@@ -2115,6 +2117,8 @@ ui_create_window(void)
 		seamless_restack_test();
 	}
 
+    agent_send("window %p\n", g_wnd);
+
 	return True;
 }
 
@@ -2635,6 +2639,7 @@ ui_select(int rdp_socket)
 
 	while (True)
 	{
+
 		n = (rdp_socket > g_x_socket) ? rdp_socket : g_x_socket;
 		/* Process any events already waiting */
 		if (!xwin_process_events())
@@ -2661,6 +2666,8 @@ ui_select(int rdp_socket)
 		rdpdr_add_fds(&n, &rfds, &wfds, &tv, &s_timeout);
 		seamless_select_timeout(&tv);
 
+        agent_add_fds(&n, &rfds, &wfds);
+
 		n++;
 
 		switch (select(n, &rfds, &wfds, NULL, &tv))
@@ -2684,6 +2691,7 @@ ui_select(int rdp_socket)
 #endif
 
 		rdpdr_check_fds(&rfds, &wfds, (RD_BOOL) False);
+		agent_check_fds(&rfds, &wfds);
 
 		if (FD_ISSET(rdp_socket, &rfds))
 			return 1;

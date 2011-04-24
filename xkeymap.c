@@ -31,6 +31,7 @@
 #include <time.h>
 #include <string.h>
 #include <assert.h>
+#include <unistd.h>
 #include "rdesktop.h"
 #include "scancodes.h"
 
@@ -1059,3 +1060,166 @@ rdp_send_scancode(uint32 time, uint16 flags, uint8 scancode)
 		rdp_send_input(time, RDP_INPUT_SCANCODE, flags, scancode, 0);
 	}
 }
+
+void
+parse_char(char *s, KeySym *ks, int *shift)
+{
+    *ks = XStringToKeysym(s);
+    if(strlen(s) != 1)
+        return;
+    if (*s >= 'A' && *s <= 'Z')
+        *shift = 1;
+    switch (*s) {
+    case 9    : *ks=XK_Tab; break;
+    case 10   : *ks=XK_Return; break;
+    case ' '  : *ks=XK_space; break;
+    case '!'  : *ks=XK_exclam; *shift=1; break;
+    case '"'  : *ks=XK_quotedbl; *shift=1; break;
+    case '#'  : *ks=XK_numbersign; *shift=1; break;
+    case '$'  : *ks=XK_dollar; *shift=1; break;
+    case '%'  : *ks=XK_percent; *shift=1; break;
+    case '&'  : *ks=XK_ampersand; *shift=1; break;
+    case '('  : *ks=XK_parenleft; *shift=1; break;
+    case ')'  : *ks=XK_parenright; *shift=1; break;
+    case '*'  : *ks=XK_asterisk; *shift=1; break;
+    case '='  : *ks=XK_equal; break;
+    case '+'  : *ks=XK_plus; *shift=1; break;
+    case '-'  : *ks=XK_minus; break;
+    case '_'  : *ks=XK_underscore; *shift=1; break;
+    case '.'  : *ks=XK_period; break;
+    case ','  : *ks=XK_comma; break;
+    case ':'  : *ks=XK_colon; *shift=1; break;
+    case ';'  : *ks=XK_semicolon; break;
+    case '<'  : *ks=XK_less; *shift=1; break;
+    case '>'  : *ks=XK_greater; *shift=1; break;
+    case '?'  : *ks=XK_question; *shift=1; break;
+    case '@'  : *ks=XK_at; *shift=1; break;
+    case '/'  : *ks=XK_slash; break;
+    case '['  : *ks=XK_bracketleft; break;
+    case ']'  : *ks=XK_bracketright; break;
+    case '`'  : *ks=XK_grave; break;
+    case '{'  : *ks=XK_braceleft; *shift=1; break;
+    case '}'  : *ks=XK_braceright; *shift=1; break;
+    case '~'  : *ks=XK_asciitilde; *shift=1; break;
+    case '|'  : *ks=XK_bar; *shift=1; break;
+    case '\'' : *ks=XK_apostrophe; break;
+    case '\\' : *ks=XK_backslash; break;
+    }
+}
+
+void
+xkeymap_send_string(char *text)
+{
+    /* Based on https://sites.google.com/site/dannychouinard/Home/unix-linux-trinkets/little-utilities/xkeyin-send-x11-keyboard-events-to-an-x-window */
+    KeySym altks = XK_Alt_L;
+    KeyCode altkc = XKeysymToKeycode(g_display, altks);
+    KeySym shiftks = XK_Shift_L;
+    KeyCode shiftkc = XKeysymToKeycode(g_display, shiftks);
+    KeySym ks;
+    KeyCode kc;
+    int alt, currentalt = 0;
+    int shift, currentshift = 0;
+    unsigned int state = 0x10;
+    int b, c;
+    char s[80];
+    char *start, *end, *pos;
+
+    fprintf(stderr, "SENDING FAKE EVENTS\n");
+
+    for (b=0; b<strlen(text); b++) {
+        alt = 0;
+        shift = 0;
+        s[0] = text[b];
+        s[1] = 0;
+        fprintf(stderr, "@%c (%d)\n", text[b], text[b]);
+        parse_char(s, &ks, &shift);
+        if (text[b] == '^') {
+            b++;
+            switch (text[b]) {
+            case 'm' : ks=XK_Return; break;
+            case 't' : ks=XK_Tab; break;
+            case '?' : ks=XK_Delete; break;
+            case 'h' : ks=XK_BackSpace; break;
+            case 'D' : ks=XK_Down; break;
+            case 'U' : ks=XK_Up; break;
+            case '^' : ks=XK_asciicircum; shift=1; break;
+            case '{' :
+                /* Examples:
+                   ^{Home}
+                   ^{S-Home}
+                */
+                b++;
+                start = text+b;
+                end = strchr(start, '}');        
+                b = b + (end-start);
+                while ((pos = strchr(start, '-')) && pos < end) {
+                    start = pos+1;
+                    pos--;
+                    if (*pos == 'A')
+                        alt = 1;
+                    if (*pos == 'S')
+                        shift = 1;
+                } 
+                if (end) {
+                    c = end-start;
+                    strncpy(s, start, c);
+                    s[c] = '\0';
+                    fprintf(stderr, "KEY LOOKUP '%s'\n", s);
+                    parse_char(s, &ks, &shift);
+                }
+                break;
+            }
+        }
+        if (ks == NoSymbol) {
+            fprintf(stderr, "KEY LOOKUP FAILED\n");
+            continue;
+        }
+        kc = XKeysymToKeycode(g_display, ks);
+        fprintf(stderr, "ALT=%d SHIFT=%d\n", alt, shift);
+        if (currentalt != alt) {
+            if (alt) {
+                fprintf(stderr, "PRESSING ALT\n");
+                xkeymap_send_keys(altks, altkc, state, time(NULL), True, 0);
+                MASK_ADD_BITS(state, Mod1Mask);
+            } else {
+                xkeymap_send_keys(altks, altkc, state, time(NULL), False, 0);
+                fprintf(stderr, "RELEASING ALT\n");
+                MASK_REMOVE_BITS(state, Mod1Mask);
+            }
+            usleep(5000);
+            currentalt = alt;
+        }
+        if (currentshift != shift) {
+            if (shift) {
+                fprintf(stderr, "PRESSING SHIFT\n");
+                xkeymap_send_keys(shiftks, shiftkc, state, time(NULL), True, 0);
+                MASK_ADD_BITS(state, ShiftMask);
+            } else {
+                xkeymap_send_keys(shiftks, shiftkc, state, time(NULL), False, 0);
+                fprintf(stderr, "RELEASING SHIFT\n");
+                MASK_REMOVE_BITS(state, ShiftMask);
+            }
+            usleep(5000);
+            currentshift = shift;
+        }
+        fprintf(stderr, "PRESSING KEY CODE 0x%x\n", kc);
+        xkeymap_send_keys(ks, kc, state, time(NULL), True, 0);
+        usleep(5000);
+        fprintf(stderr, "RELEASING KEY CODE 0x%x\n", kc);
+        xkeymap_send_keys(ks, kc, state, time(NULL), False, 0);
+        usleep(5000);
+    }
+    if (currentalt) {
+        xkeymap_send_keys(altks, altkc, state, time(NULL), False, 0);
+        fprintf(stderr, "RELEASING ALT\n");
+        MASK_REMOVE_BITS(state, Mod1Mask);
+    }
+    if (currentshift) {
+        fprintf(stderr, "RELEASING SHIFT\n");
+        xkeymap_send_keys(shiftks, shiftkc, state, time(NULL), False, 0);
+        MASK_REMOVE_BITS(state, ShiftMask);
+    }
+  
+    fprintf(stderr, "\n");
+}
+

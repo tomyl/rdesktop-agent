@@ -1,0 +1,12 @@
+#!/usr/local/bin/xexpect
+
+interval 3
+
+# Pick second option in boot menu
+expect -Demo
+stdout send ^{Prior}^{Down}^m
+
+expect Enter Hostname
+stdout send ^{Home}^{S-End}test01^{A-o}
+stdout exit
+

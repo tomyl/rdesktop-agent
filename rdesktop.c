@@ -53,6 +53,7 @@ char g_title[64] = "";
 char *g_username;
 char g_hostname[16];
 char g_keymapname[PATH_MAX] = "";
+char g_agent[PATH_MAX] = "";
 unsigned int g_keylayout = 0x409;	/* Defaults to US keyboard layout */
 int g_keyboard_type = 0x4;	/* Defaults to US keyboard layout */
 int g_keyboard_subtype = 0x0;	/* Defaults to US keyboard layout */
@@ -501,10 +502,14 @@ main(int argc, char *argv[])
 #endif
 
 	while ((c = getopt(argc, argv,
-			   VNCOPT "Au:L:d:s:c:p:n:k:g:fbBeEmzCDKS:T:NX:a:x:Pr:045h?")) != -1)
+			   VNCOPT "Au:L:d:s:c:p:n:k:G:g:fbBeEmzCDKS:T:NX:a:x:Pr:045h?")) != -1)
 	{
 		switch (c)
 		{
+            case 'G':
+				STRNCPY(g_agent, optarg, sizeof(g_agent));
+                break;
+
 #ifdef RDP2VNC
 			case 'V':
 				rfb_port = strtol(optarg, NULL, 10);
@@ -957,6 +962,8 @@ main(int argc, char *argv[])
 		strcpy(g_title, "rdesktop - ");
 		strncat(g_title, server, sizeof(g_title) - sizeof("rdesktop - "));
 	}
+
+    agent_init();
 
 #ifdef RDP2VNC
 	rdp2vnc_connect(server, flags, domain, password, shell, directory);
