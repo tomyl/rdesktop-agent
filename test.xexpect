@@ -1,12 +1,43 @@
 #!/usr/local/bin/xexpect
 
 interval 3
+defmacro mark stdout send ^{Home}^{S-End}
+defmacro ok   stdout send ^{A-o}
 
 # Pick second option in boot menu
 expect -Demo
 stdout send ^{Prior}^{Down}^m
 
 expect Enter Hostname
-stdout send ^{Home}^{S-End}test01^{A-o}
-stdout exit
+macro  mark
+stdout send test01
+macro  ok
 
+expect Enter the prmay IP Address
+macro  mark
+stdout send 192.168.100.10
+macro  ok
+
+expect Enter the prmay Gateway Address
+macro  mark
+stdout send 192.168.100.1
+macro  ok
+
+expect Enter the Netmask
+macro  mark
+stdout send 255.255.255.0
+macro  ok
+
+expect Enter prmay DNS
+macro  mark
+stdout send 192.168.100.2
+macro  ok
+
+expect Enter seconday DNS
+macro  mark
+stdout send 192.168.100.3
+macro  ok
+
+expect Choose CIock and Tme Zone
+macro  ok
+stdout exit

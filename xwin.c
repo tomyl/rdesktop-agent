@@ -39,14 +39,12 @@ extern int g_height;
 extern int g_xpos;
 extern int g_ypos;
 extern int g_pos;
-extern int g_agent_fd;
 extern RD_BOOL g_sendmotion;
 extern RD_BOOL g_fullscreen;
 extern RD_BOOL g_grab_keyboard;
 extern RD_BOOL g_hide_decorations;
 extern RD_BOOL g_pending_resize;
 extern char g_title[];
-extern char g_agent[];
 /* Color depth of the RDP session.
    As of RDP 5.1, it may be 8, 15, 16 or 24. */
 extern int g_server_depth;
@@ -2691,7 +2689,7 @@ ui_select(int rdp_socket)
 #endif
 
 		rdpdr_check_fds(&rfds, &wfds, (RD_BOOL) False);
-		agent_check_fds(&rfds, &wfds);
+        agent_check_fds(&rfds, &wfds);
 
 		if (FD_ISSET(rdp_socket, &rfds))
 			return 1;

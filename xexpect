@@ -24,9 +24,9 @@ sub capture {
         return;
     }
 
-    my ($fh1, $jpg) = tempfile(SUFFIX => '.jpg', UNLINK => 0);
-    my ($fh2, $pnm) = tempfile(SUFFIX => '.pnm', UNLINK => 0);
-    my ($fh3, $txt) = tempfile(SUFFIX => '.txt', UNLINK => 0);
+    my ($fh1, $jpg) = tempfile(SUFFIX => '.jpg', UNLINK => 1);
+    my ($fh2, $pnm) = tempfile(SUFFIX => '.pnm', UNLINK => 1);
+    my ($fh3, $txt) = tempfile(SUFFIX => '.txt', UNLINK => 1);
 
     print STDERR "Capturing $wid at $display\n";
 
@@ -59,6 +59,7 @@ sub capture {
 
 my $toexpect;
 my %actions;
+my %macros;
 my $interval = 5;
 
 my $path = $ARGV[0];
@@ -75,13 +76,17 @@ while (my $line = <FH>) {
     }
 
     if ($toexpect) {
-        if ($line =~ /^\s*(stdout|interval)\s+(.*)/) {
+        if ($line =~ /^\s*(stdout|macro|interval)\s+(.*)/) {
             push @{$actions{$toexpect}}, [$1, $2];
             next;
         }
     } else {
         if ($line =~ /^\s*interval\s+(.*)/) {
             $interval = $1;
+            next;
+        }
+        if ($line =~ /^\s*defmacro\s+(.*?)\s+(.*)/) {
+            $macros{$1} = $2;
             next;
         }
     }
@@ -91,7 +96,8 @@ while (my $line = <FH>) {
 
 close(FH);
 
-print STDERR Dumper(\%actions);
+print STDERR "Actions: " . Dumper(\%actions);
+print STDERR "Macros: " . Dumper(\%macros);
 
 my $sel = IO::Select->new();
 $sel->add(\*STDIN);
@@ -100,22 +106,21 @@ $| = 1;
 while (1) {
     my $start = time();
 
-    print STDERR "QQQ0\n";
     while ($sel->can_read($interval)) {
-        print STDERR "QQQ1\n";
-        my $line = <STDIN>;
-        if (!defined $line || $line eq '') {
-            exit(0)
-        }
-        chomp $line;
-        print STDERR "From rdesktop: $line\n";
+        my @lines = <STDIN>;
+        for my $line (@lines) {
+            if (!defined $line || $line eq '') {
+                exit(0)
+            }
+            chomp $line;
+            print STDERR "From rdesktop: $line\n";
 
-        if ($line =~ /^window (.*)$/) {
-            $wid = $1;
-            print STDERR "Will capture from window $wid\n";
+            if ($line =~ /^window (.*)$/) {
+                $wid = $1;
+                print STDERR "Will capture from window $wid\n";
+            }
         }
     }
-    print STDERR "QQQ2\n";
 
     next unless $wid;
     my $left = $interval - (time() - $start);
@@ -127,13 +132,24 @@ while (1) {
         print STDERR "TRYING $s\n";
         if ($output =~ /$s/) {
             my @acts = @{$actions{$s}};
+            print STDERR "ACTIONS " . Dumper(\@acts);
             while (my $a = shift @acts) {
+                print STDERR "ACTION @$a\n";
                 my ($cmd, $arg) = @$a;
+                if ($cmd eq 'macro') {
+                    my $cmdline = $macros{$arg};
+                    if ($cmdline) {
+                        print STDERR "MACRO $arg\n";
+                        unshift @acts, [split(/\s+/, $cmdline, 2)];
+                    } else {
+                        print STDERR "UNKNOWN MACRO '$arg'\n";
+                    }
+                }
                 if ($cmd eq 'interval') {
                     $interval = $1;
                 }
                 if ($cmd eq 'stdout') {
-                    print STDERR "WRITING TO STDOUT\n";
+                    print STDERR "WRITING TO STDOUT: $arg\n";
                     print $arg . "\n";
                 }
             }
