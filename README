@@ -1,3 +1,27 @@
+Original README follows.
+
+This is a fork of
+
+  https://rdesktop.svn.sourceforge.net/svnroot/rdesktop/rdesktop/trunk
+
+which makes it possible to control rdesktop using an agent script. The purpose
+of this hack was to automate OS installations. I have done the same hack for
+vncviewer, see
+
+  https://github.com/tomyl/vncviewer-agent
+
+For more background, see 
+
+  http://permalink.gmane.org/gmane.network.rdesktop.user/2687
+
+The agent script is invoked like this:
+
+  rdesktop -G ./test.xexpect host
+
+My agent scripts use ./xexpect as interpreter. The agent protocol that
+rdesktop uses is documented in this script.
+
+
 ==========================================
 rdesktop: A Remote Desktop Protocol client
 ==========================================
